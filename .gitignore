@@ -1,0 +1,4 @@
+# real keys stay on your machine
+config.js
+.env
+.DS_Store
