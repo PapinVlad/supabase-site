@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guide · Supabase · Group B</title>
+<meta name="description" content="Reference notes on Supabase: PostgreSQL, the Data API, Auth and Row Level Security, Realtime, and when to use it.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F1714'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%233ECF8E'/%3E%3C/svg%3E">
+
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="dot" aria-hidden="true"></span>Supabase · Group B</a>
+    <nav class="site-nav" aria-label="Main">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="guide.html" aria-current="page">Guide</a></li>
+        <li><a href="tutorial.html">Tutorial</a></li>
+        <li><a href="cheatsheet.html">Cheat sheet</a></li>
+        <li><a href="slides.html">Slides</a></li>
+        <li><a href="references.html">References</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<main id="content">
+<section class="hero">
+  <p class="eyebrow">Reference notes</p>
+  <h1>How Supabase works</h1>
+  <p class="lead">Five short chapters for someone meeting Supabase for the first time. Each one explains a part of the platform, shows it in our example app and links to the official documentation.</p>
+</section>
+
+<div class="with-toc">
+  <aside class="toc" aria-label="On this page">
+    <p>On this page</p>
+    <ol>
+      <li><a href="#platform">1. The platform</a></li>
+      <li><a href="#data">2. PostgreSQL and the Data API</a></li>
+      <li><a href="#access">3. Auth and Row Level Security</a></li>
+      <li><a href="#realtime">4. Realtime</a></li>
+      <li><a href="#evaluation">5. When to use it</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </aside>
+
+  <div>
+    <!-- ===================== 1 ===================== -->
+    <section class="block" id="platform">
+      <p class="eyebrow">Chapter 1</p>
+      <h2>The platform: a backend built around PostgreSQL</h2>
+      <p>Backend as a Service (BaaS) means a provider runs the common backend parts for you, and your app calls them over the internet. You still design the data, the access rules and the interface, but you do not build or operate the servers.</p>
+      <p>Supabase is a BaaS whose core is a full PostgreSQL database. Supabase's documentation says that everything it uses is open source, that it uses Postgres rather than a NoSQL store, and that it relies on existing standards such as <code>pg_dump</code> to keep data portable <a class="cite" href="references.html#r1">[1]</a>. Each service around the database is a separate open-source project:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Part</th><th>What it does</th><th>Built on</th><th>In our example</th></tr></thead>
+          <tbody>
+            <tr><th>PostgreSQL</th><td>Stores the data, enforces constraints and access policies</td><td>PostgreSQL</td><td class="yes">Yes</td></tr>
+            <tr><th>Auth</th><td>Sign-in, sessions, issues JSON Web Tokens (JWTs)</td><td>GoTrue</td><td class="yes">Yes</td></tr>
+            <tr><th>Data API</th><td>Turns tables into a REST API over HTTP</td><td>PostgREST</td><td class="yes">Yes</td></tr>
+            <tr><th>Realtime</th><td>Pushes database changes and messages over WebSockets</td><td>Realtime (Elixir)</td><td class="yes">Yes</td></tr>
+            <tr><th>Storage</th><td>Files such as images, with access rules</td><td>Storage API</td><td class="muted">No</td></tr>
+            <tr><th>Edge Functions</th><td>Server-side TypeScript for logic that must not run in the browser</td><td>Deno</td><td class="muted">No</td></tr>
+            <tr><th>Studio</th><td>The web dashboard used to manage a project</td><td>Studio</td><td class="muted">Setup only</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Components and technologies as listed in the Supabase architecture documentation <a class="cite" href="references.html#r1">[1]</a>. The platform can be used as a hosted service or self-hosted with Docker <a class="cite" href="references.html#r11">[11]</a>.</p>
+
+      <h3>Where our code runs</h3>
+      <figure class="diagram">
+        <svg viewBox="0 0 760 390" role="img" aria-labelledby="archTitle archDesc">
+          <title id="archTitle">Architecture of our example</title>
+          <desc id="archDesc">The browser runs our HTML, CSS and JavaScript with the supabase-js client. It sends sign-in requests to Auth, reads and writes to the Data API, and keeps a WebSocket open to Realtime. Auth, the Data API and Realtime all work with PostgreSQL, which applies Row Level Security. A local Python server only serves the files.</desc>
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-arrow" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="d-arrow-g" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <text class="d-cap" x="10" y="98">YOUR COMPUTER</text>
+          <rect class="d-box" x="10" y="110" width="170" height="150" rx="12"/>
+          <text class="d-t" x="26" y="142">Browser</text>
+          <text class="d-s" x="26" y="167">HTML · CSS · JS</text>
+          <text class="d-s" x="26" y="189">+ supabase-js</text>
+          <text class="d-g" x="26" y="238">our code runs here</text>
+          <rect class="d-off" x="10" y="286" width="170" height="64" rx="10"/>
+          <text class="d-t" x="26" y="313" style="font-size:15px">Python server</text>
+          <text class="d-s" x="26" y="336">serves files only</text>
+
+          <rect class="d-panel" x="250" y="34" width="500" height="346" rx="16"/>
+          <text class="d-cap" x="270" y="62">SUPABASE (HOSTED)</text>
+          <rect class="d-box" x="272" y="80" width="200" height="66" rx="10"/>
+          <text class="d-t" x="288" y="107">Auth</text>
+          <text class="d-s" x="288" y="130">/auth/v1 · issues JWTs</text>
+          <rect class="d-box" x="272" y="162" width="200" height="66" rx="10"/>
+          <text class="d-t" x="288" y="189">Data API</text>
+          <text class="d-s" x="288" y="212">/rest/v1 · PostgREST</text>
+          <rect class="d-box" x="272" y="244" width="200" height="66" rx="10"/>
+          <text class="d-t" x="288" y="271">Realtime</text>
+          <text class="d-s" x="288" y="294">WebSocket events</text>
+          <rect class="d-key" x="546" y="112" width="190" height="172" rx="12"/>
+          <text class="d-t" x="564" y="144">PostgreSQL</text>
+          <text class="d-s" x="564" y="170">tables, constraints</text>
+          <text class="d-s" x="564" y="193">grants</text>
+          <text class="d-g" x="564" y="216">RLS policies</text>
+          <text class="d-s" x="564" y="239">auth.users</text>
+          <rect class="d-off" x="272" y="326" width="464" height="38" rx="8"/>
+          <text class="d-s" x="288" y="350">Also: Storage · Edge Functions · Studio (not used here)</text>
+
+          <line class="d-line" x1="180" y1="146" x2="268" y2="114" marker-end="url(#ah)"/>
+          <text class="d-s" x="188" y="118">sign in</text>
+          <line class="d-line" x1="180" y1="186" x2="268" y2="196" marker-end="url(#ah)"/>
+          <text class="d-s" x="188" y="180">read/write</text>
+          <line class="d-line" x1="180" y1="226" x2="268" y2="276" marker-start="url(#ah)" marker-end="url(#ah)"/>
+          <text class="d-s" x="188" y="270">live</text>
+          <line class="d-line-g" x1="472" y1="113" x2="542" y2="156" marker-end="url(#ahg)"/>
+          <line class="d-line-g" x1="472" y1="195" x2="542" y2="198" marker-end="url(#ahg)"/>
+          <line class="d-line-g" x1="544" y1="246" x2="476" y2="277" marker-end="url(#ahg)"/>
+        </svg>
+        <figcaption>Our example has no application server of its own, but it still has a backend: Supabase provides it. Every request carries the user's token, and PostgreSQL decides what that user may do.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ===================== 2 ===================== -->
+    <section class="block" id="data">
+      <p class="eyebrow">Chapter 2</p>
+      <h2>PostgreSQL and the Data API</h2>
+      <h3>Relational data</h3>
+      <p>PostgreSQL stores data in tables. Each row has a <strong>primary key</strong> that identifies it, and a <strong>foreign key</strong> is a column that must match a primary key in another table. Constraints are rules the database enforces on every write, whoever sends it <a class="cite" href="references.html#r17">[17]</a>.</p>
+      <p>Our example has two tables. Projects are shared reference data; tasks belong to one user and one project. Keeping projects in their own table means each name is stored once and every task points at a project that really exists.</p>
+
+      <div class="code-title"><span>setup.sql (excerpt)</span><span>our schema</span></div>
+<pre><code>create table public.demo_projects (
+  id   uuid primary key default gen_random_uuid(),
+  name text not null unique check (char_length(btrim(name)) between 1 and 80)
+);
+
+create table public.demo_tasks (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.demo_projects(id),
+  owner_id   uuid not null references auth.users(id) on delete cascade,
+  title      text not null check (char_length(btrim(title)) between 1 and 120),
+  created_at timestamptz not null default now()
+);</code></pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Rule</th><th>Where</th><th>What it protects</th><th>If broken</th></tr></thead>
+          <tbody>
+            <tr><th>NOT NULL</th><td>every column</td><td>No half-empty rows</td><td><code>23502</code></td></tr>
+            <tr><th>UNIQUE</th><td><code>demo_projects.name</code></td><td>No duplicate project names</td><td><code>23505</code></td></tr>
+            <tr><th>CHECK</th><td>name and title length</td><td>No blank or very long text</td><td><code>23514</code></td></tr>
+            <tr><th>FOREIGN KEY</th><td><code>project_id</code>, <code>owner_id</code></td><td>Tasks point at real projects and users</td><td><code>23503</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Error codes are PostgreSQL's standard SQLSTATE codes <a class="cite" href="references.html#r19">[19]</a>.</p>
+
+      <h3>The Data API</h3>
+      <p>The Data API is PostgREST: it reads the database schema and exposes tables as REST endpoints, so the browser can query them without server code written by us <a class="cite" href="references.html#r5">[5]</a> <a class="cite" href="references.html#r20">[20]</a>. The supabase-js client builds those HTTP requests. Before the API can reach a table, the database roles it uses need grants on that table <a class="cite" href="references.html#r14">[14]</a>.</p>
+
+      <div class="two-col">
+        <div>
+          <div class="code-title"><span>app.js</span><span>JavaScript</span></div>
+<pre><code>const { data, error } = await db
+  .from('demo_tasks')
+  .select('id, title, created_at, demo_projects(name)')
+  .order('created_at', { ascending: false });</code></pre>
+        </div>
+        <div>
+          <div class="code-title"><span>response</span><span>JSON</span></div>
+<pre><code>[{
+  "id": "…",
+  "title": "Investigate foreign keys",
+  "created_at": "2026-10-20T14:02:11Z",
+  "demo_projects": { "name": "Presentation research" }
+}]</code></pre>
+        </div>
+      </div>
+      <p>The call becomes one <code>GET /rest/v1/demo_tasks</code> request. Because <code>project_id</code> is a foreign key, the API detects the relationship and can embed the project's name in the same response <a class="cite" href="references.html#r6">[6]</a>. Notice there is no "where owner = me" filter: which rows come back is decided by Row Level Security, covered next.</p>
+
+      <div class="callout tip"><span class="label">Beyond our example.</span> The same tables can also be queried through GraphQL, which Supabase provides with its <code>pg_graphql</code> extension <a class="cite" href="references.html#r1">[1]</a>, and PostgreSQL extensions such as <code>pgvector</code> add features like similarity search.</div>
+
+      <h3>What a broken rule looks like</h3>
+      <p>Our test button inserts a task whose <code>project_id</code> does not exist. PostgreSQL rejects it with <code>23503</code> (foreign key violation) and saves nothing. This error is about <em>data integrity</em>: it happens for every user, whoever is signed in. Compare it with <code>42501</code> in the next chapter, which is about <em>access</em>.</p>
+    </section>
+
+    <!-- ===================== 3 ===================== -->
+    <section class="block" id="access">
+      <p class="eyebrow">Chapter 3</p>
+      <h2>Auth and Row Level Security</h2>
+      <h3>Who you are, and what you may do</h3>
+      <p><strong>Authentication</strong> answers "who are you?". Supabase Auth checks the email and password and returns a session containing a JWT access token <a class="cite" href="references.html#r3">[3]</a>. The token carries the user's ID (the <code>sub</code> claim) and a role such as <code>authenticated</code>, and supabase-js sends it with every request.</p>
+      <p><strong>Authorisation</strong> answers "what may you do?". In Supabase that decision is made inside PostgreSQL. The database reads the user ID from the token as <code>auth.uid()</code> and applies two layers: table <strong>grants</strong> decide which operations a role may perform, then <strong>RLS policies</strong> decide which rows. PostgreSQL evaluates grants first and only then applies RLS <a class="cite" href="references.html#r2">[2]</a>.</p>
+
+      <figure class="diagram">
+        <svg viewBox="0 0 760 200" role="img" aria-labelledby="accTitle accDesc">
+          <title id="accTitle">How a request is checked</title>
+          <desc id="accDesc">A request with a JWT first passes the grant check, which decides which operations the role may perform. Then the RLS policy decides which rows. Reads that fail the policy return no rows; writes that fail it return error 42501.</desc>
+          <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="d-arrow" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+          <rect class="d-box" x="10" y="14" width="160" height="76" rx="10"/>
+          <text class="d-t" x="24" y="45">Request</text>
+          <text class="d-s" x="24" y="69">+ JWT (user ID, role)</text>
+          <rect class="d-box" x="205" y="14" width="165" height="76" rx="10"/>
+          <text class="d-t" x="219" y="45">1 · Grant</text>
+          <text class="d-s" x="219" y="69">which operations?</text>
+          <rect class="d-key" x="405" y="14" width="165" height="76" rx="10"/>
+          <text class="d-t" x="419" y="45">2 · RLS policy</text>
+          <text class="d-s" x="419" y="69">which rows?</text>
+          <rect class="d-box" x="605" y="14" width="145" height="76" rx="10"/>
+          <text class="d-t" x="619" y="45">Result</text>
+          <text class="d-s" x="619" y="69">permitted rows</text>
+          <line class="d-line" x1="170" y1="52" x2="201" y2="52" marker-end="url(#ah2)"/>
+          <line class="d-line" x1="370" y1="52" x2="401" y2="52" marker-end="url(#ah2)"/>
+          <line class="d-line" x1="570" y1="52" x2="601" y2="52" marker-end="url(#ah2)"/>
+          <line class="d-line" x1="287" y1="90" x2="287" y2="124" marker-end="url(#ah2)"/>
+          <text class="d-s" x="219" y="148">no grant</text>
+          <text class="d-g" x="219" y="170" style="fill:var(--red)">→ 42501</text>
+          <line class="d-line" x1="487" y1="90" x2="487" y2="124" marker-end="url(#ah2)"/>
+          <text class="d-s" x="419" y="148">read: filtered → []</text>
+          <text class="d-g" x="419" y="170" style="fill:var(--red)">write: WITH CHECK → 42501</text>
+        </svg>
+        <figcaption>The browser never decides access. Hiding a button is not a security control; the database check is.</figcaption>
+      </figure>
+
+      <h3>Our policies</h3>
+      <div class="code-title"><span>setup.sql (excerpt)</span><span>grants and RLS</span></div>
+<pre><code>alter table public.demo_tasks enable row level security;
+
+revoke all on public.demo_projects, public.demo_tasks from public, anon, authenticated;
+grant select on public.demo_projects to authenticated;
+grant select, insert on public.demo_tasks to authenticated;
+
+create policy "Users read their own demo tasks"
+  on public.demo_tasks for select to authenticated
+  using ((select auth.uid()) = owner_id);
+
+create policy "Users insert their own demo tasks"
+  on public.demo_tasks for insert to authenticated
+  with check ((select auth.uid()) = owner_id);</code></pre>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Clause</th><th>Applies to</th><th>Effect when it is false</th></tr></thead>
+          <tbody>
+            <tr><th><code>USING</code></th><td>Existing rows (SELECT, and the rows UPDATE or DELETE may touch)</td><td>The row is silently left out</td></tr>
+            <tr><th><code>WITH CHECK</code></th><td>New or changed rows (INSERT, UPDATE)</td><td>The statement fails with an error</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Semantics from the PostgreSQL row security documentation <a class="cite" href="references.html#r18">[18]</a>. Wrapping <code>auth.uid()</code> in <code>(select …)</code> lets PostgreSQL evaluate it once per statement instead of once per row, which Supabase recommends for performance <a class="cite" href="references.html#r4">[4]</a>.</p>
+      <p>There is no UPDATE or DELETE grant, so the page cannot edit or delete tasks at all, and signed-out visitors (the <code>anon</code> role) get no table access. Supabase notes that once RLS is enabled, no data is reachable through the API with a publishable key until policies allow it <a class="cite" href="references.html#r4">[4]</a>.</p>
+
+      <h3>Keys: why the key in the page is not a leak</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Key</th><th>Maps to role</th><th>RLS</th><th>Where it belongs</th></tr></thead>
+          <tbody>
+            <tr><th>Publishable <code>sb_publishable_…</code></th><td><code>anon</code>, or <code>authenticated</code> once signed in</td><td class="yes">Applies</td><td>Browser, mobile app, source code</td></tr>
+            <tr><th>Secret <code>sb_secret_…</code></th><td><code>service_role</code></td><td class="no">Bypassed</td><td>Servers only; browsers are refused with 401</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Supabase documents the publishable key as safe to expose, because it only identifies the project and every request is still checked by RLS. The secret key bypasses RLS and must never reach a browser. The older <code>anon</code> and <code>service_role</code> JWT keys are the legacy versions of these two, and Supabase is deprecating them by the end of 2026 <a class="cite" href="references.html#r2">[2]</a>. The real risk is a table without a policy, not a visible key.</p>
+
+      <h3>Evidence from our example</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Check</th><th>Who</th><th>Result</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><th>Insert with a project ID that does not exist</th><td>A</td><td><code>23503</code></td><td>Foreign key: integrity</td></tr>
+            <tr><th>Insert a task owned by A</th><td>A</td><td class="yes">saved</td><td>WITH CHECK passes</td></tr>
+            <tr><th>Read A's real task by its ID</th><td>B</td><td><code>[]</code></td><td>USING filters the row out</td></tr>
+            <tr><th>Insert a task with A as owner</th><td>B</td><td><code>42501</code></td><td>WITH CHECK fails</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn"><span class="label">Careful.</span> An empty result alone proves nothing: a made-up ID also returns <code>[]</code>. The test only counts when the task really exists and A can see it.</div>
+    </section>
+
+    <!-- ===================== 4 ===================== -->
+    <section class="block" id="realtime">
+      <p class="eyebrow">Chapter 4</p>
+      <h2>Realtime: changes pushed to the page</h2>
+      <p>There are two ways for a page to find out that data has changed. With <strong>polling</strong> it asks the server again every few seconds, and most answers are empty. With <strong>push</strong> it keeps one WebSocket open and the server sends a message only when something happens. Supabase Realtime is the push option <a class="cite" href="references.html#r7">[7]</a>.</p>
+      <p>Realtime offers three features: <strong>Postgres Changes</strong> (database inserts, updates and deletes), <strong>Broadcast</strong> (messages between clients, such as chat) and <strong>Presence</strong> (who is online) <a class="cite" href="references.html#r7">[7]</a>. Our example uses Postgres Changes.</p>
+
+      <h3>Turning it on</h3>
+      <p>Realtime only sees tables that are part of the <code>supabase_realtime</code> publication <a class="cite" href="references.html#r8">[8]</a>:</p>
+<pre><code>alter publication supabase_realtime add table public.demo_tasks;</code></pre>
+      <div class="code-title"><span>app.js</span><span>subscribe to new tasks</span></div>
+<pre><code>channel = db.channel('tasks-live')
+  .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'demo_tasks' },
+      () =&gt; loadTasks())          // read fresh, authorised data
+  .subscribe();</code></pre>
+
+      <h3>One task, from the database to the screen</h3>
+      <ol class="tasks">
+        <li><strong>Insert.</strong> Window A1 saves a task through the Data API.</li>
+        <li><strong>Stored.</strong> PostgreSQL writes the row and checks the constraints.</li>
+        <li><strong>Captured.</strong> Realtime picks up the change from the publication.</li>
+        <li><strong>Authorised.</strong> Realtime checks, for each subscriber, whether RLS lets them read that row. Records are only sent to clients allowed to read them <a class="cite" href="references.html#r9">[9]</a>.</li>
+        <li><strong>Delivered.</strong> Window A2's callback runs.</li>
+        <li><strong>Fresh read.</strong> Our callback does not trust the event; it runs a new SELECT, which goes through RLS again and also brings the project name.</li>
+        <li><strong>Rendered.</strong> The card appears. The green highlight is our own CSS; Supabase only delivered the event.</li>
+      </ol>
+      <p>User B, signed in elsewhere, receives nothing for A's task because step 4 filters it out.</p>
+
+      <div class="callout warn"><span class="label">Limits worth knowing.</span> Supabase does not apply RLS to DELETE events, because a deleted row can no longer be checked <a class="cite" href="references.html#r8">[8]</a>. Postgres Changes authorises every event for every subscriber, so the documentation recommends Broadcast once more than about 3,000 clients listen to the same changes <a class="cite" href="references.html#r8">[8]</a>. Our example only listens for INSERT; edits and deletes need a manual refresh. That is a limit of our example, not of Supabase.</div>
+    </section>
+
+    <!-- ===================== 5 ===================== -->
+    <section class="block" id="evaluation">
+      <p class="eyebrow">Chapter 5</p>
+      <h2>When to use Supabase</h2>
+      <h3>A scenario where it fits</h3>
+      <div class="card accent">
+        <p>A student society wants a small web app: members sign in, post events, sign up for them and see the numbers change live. Three volunteers will build it in a few weeks, and nobody wants to run a server.</p>
+        <p>Supabase covers sign-in, the database, the API and live updates out of the box. The volunteers write the HTML and JavaScript, design two or three tables and write policies such as "members can only cancel their own sign-up". The free plan is enough to start.</p>
+      </div>
+
+      <h3>What it saved us, and what we still built</h3>
+      <div class="two-col">
+        <div class="card"><h3>Supabase provided</h3><ul><li>Hosted PostgreSQL</li><li>Auth with JWT sessions</li><li>The REST Data API</li><li>The Realtime server</li></ul></div>
+        <div class="card"><h3>We still built</h3><ul><li>The schema and constraints</li><li>Grants and RLS policies</li><li>The HTML and JavaScript frontend</li><li>Tests of the access rules</li></ul></div>
+      </div>
+
+      <h3>Cost</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Plan</th><th>Price</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><th>Free</th><td>$0</td><td>500 MB database, 50,000 monthly active users, 5 GB egress; projects pause after a week without activity</td></tr>
+            <tr><th>Pro</th><td>from $25 a month</td><td>Plus usage beyond the included quotas; daily backups</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">Pricing checked on 10 October 2026 <a class="cite" href="references.html#r13">[13]</a>. Automatic daily backups apply to paid plans; Supabase recommends free projects export their data regularly with <code>supabase db dump</code> <a class="cite" href="references.html#r12">[12]</a>.</p>
+
+      <h3>Compared with the alternatives</h3>
+      <div class="table-wrap compact">
+        <table>
+          <thead><tr><th></th><th>Supabase (hosted)</th><th>Firebase</th><th>Custom backend + PostgreSQL</th><th>Self-hosted Supabase</th></tr></thead>
+          <tbody>
+            <tr><th>Database</th><td>PostgreSQL</td><td>Firestore (NoSQL documents)</td><td>PostgreSQL</td><td>PostgreSQL</td></tr>
+            <tr><th>Access rules</th><td>RLS in the database</td><td>Security Rules</td><td>Our API code</td><td>RLS in the database</td></tr>
+            <tr><th>Setup</th><td>Fast: managed</td><td>Fast: managed</td><td>Slow: build the API and auth</td><td>Medium: run the stack</td></tr>
+            <tr><th>Who runs it</th><td>Supabase</td><td>Google</td><td>Our team</td><td>Our team</td></tr>
+            <tr><th>Lock-in</th><td>Low–medium</td><td>Higher: Google-hosted only</td><td>Lowest</td><td>Low</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small">Firebase's main database, Firestore, stores documents in collections <a class="cite" href="references.html#r24">[24]</a> and controls access with Security Rules <a class="cite" href="references.html#r25">[25]</a>; its emulators are for local testing, not a self-hosted Firebase <a class="cite" href="references.html#r26">[26]</a>. Firebase also offers PostgreSQL through SQL Connect, formerly Data Connect, generally available since April 2025 and renamed in April 2026 <a class="cite" href="references.html#r21">[21]</a> <a class="cite" href="references.html#r22">[22]</a> <a class="cite" href="references.html#r23">[23]</a>. Supabase's lock-in is low to medium: the data is ordinary PostgreSQL that can be exported with <code>pg_dump</code> <a class="cite" href="references.html#r1">[1]</a>, but code that uses <code>auth.users</code>, <code>auth.uid()</code> and supabase-js would need rework elsewhere. Self-hosting moves security, HTTPS, email and updates back to your own team <a class="cite" href="references.html#r11">[11]</a>.</p>
+
+      <h3>Pros and cons</h3>
+      <div class="two-col">
+        <div class="card accent">
+          <h3>Strengths</h3>
+          <ul>
+            <li>A real relational database with SQL, joins and constraints</li>
+            <li>Access rules live next to the data and apply to every client</li>
+            <li>Auth, API and live updates without writing a server</li>
+            <li>Open source, so self-hosting and data export are possible</li>
+            <li>A usable free tier for learning and prototypes</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Weaknesses</h3>
+          <ul>
+            <li>You must be comfortable with SQL and policies; a missing policy is a security hole</li>
+            <li>Heavy custom server logic moves into Edge Functions or another service</li>
+            <li>Free projects pause after a week idle</li>
+            <li>Cost depends on usage, so it is harder to predict at scale</li>
+            <li>Realtime at large scale needs design choices such as Broadcast</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout check"><span class="label">Our verdict.</span> Supabase is a strong fit for data-centred web apps that need sign-in, CRUD and live updates, especially prototypes and small teams, as long as the team owns its SQL and RLS. It is a weaker fit for apps dominated by custom server logic, for teams that need full control of their infrastructure, or for teams new to SQL.</div>
+    </section>
+
+    <section class="block" id="glossary">
+      <h2>Glossary</h2>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><th>BaaS</th><td>Backend as a Service: a provider runs common backend parts that your app calls.</td></tr>
+            <tr><th>JWT</th><td>JSON Web Token: a signed token that proves who the user is; sent with each request.</td></tr>
+            <tr><th>PostgREST</th><td>Open-source server that turns a PostgreSQL schema into a REST API.</td></tr>
+            <tr><th>RLS</th><td>Row Level Security: PostgreSQL policies that decide which rows a role may see or change.</td></tr>
+            <tr><th>Grant</th><td>Permission for a role to run an operation (SELECT, INSERT…) on a table.</td></tr>
+            <tr><th>Publication</th><td>A PostgreSQL list of tables whose changes are sent out; Realtime listens to <code>supabase_realtime</code>.</td></tr>
+            <tr><th>WebSocket</th><td>A connection that stays open so the server can push messages to the browser.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="inner">
+    <span>COMP10020 Internet Technologies · University of the West of Scotland · Coursework 1 · Group B</span>
+    <span><a href="https://github.com/PapinVlad/supabase-site">Repository on GitHub</a> · <a href="references.html">References</a></span>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

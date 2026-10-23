@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tutorial · Supabase · Group B</title>
+<meta name="description" content="A one-hour lab: create a Supabase project, add tables with access rules and build a live task board in plain JavaScript.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F1714'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%233ECF8E'/%3E%3C/svg%3E">
+
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="dot" aria-hidden="true"></span>Supabase · Group B</a>
+    <nav class="site-nav" aria-label="Main">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="guide.html">Guide</a></li>
+        <li><a href="tutorial.html" aria-current="page">Tutorial</a></li>
+        <li><a href="cheatsheet.html">Cheat sheet</a></li>
+        <li><a href="slides.html">Slides</a></li>
+        <li><a href="references.html">References</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<main id="content">
+<section class="hero">
+  <p class="eyebrow">Tutorial · about 60 minutes</p>
+  <h1>Build a live task board with Supabase</h1>
+  <p class="lead">You will create a Supabase project from scratch, write the tables and access rules in SQL, and build a small web page where each user sees only their own tasks and new tasks appear without a refresh.</p>
+</section>
+
+<div class="progress no-print" aria-live="polite">
+  <div class="progress-bar"><span></span></div>
+  <div class="progress-text"><span data-progress-label>0 of 9 steps done</span><span>Tick each step when it works. Progress is saved in this browser only.</span></div>
+</div>
+
+<section class="block" id="before">
+  <h2>Before you start</h2>
+  <div class="two-col">
+    <div>
+      <h3 style="margin-top:0">You need</h3>
+      <ul>
+        <li>A free Supabase account (sign in at <a href="https://supabase.com/dashboard">supabase.com/dashboard</a>)</li>
+        <li>A code editor, for example VS Code</li>
+        <li>Python 3 <em>or</em> the VS Code Live Server extension, to serve the page locally</li>
+        <li>Chrome, Edge or Firefox, including a private window for the second user</li>
+        <li>Basic HTML and JavaScript; no SQL experience needed</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-top:0">You will learn</h3>
+      <ul>
+        <li>How a PostgreSQL schema with foreign keys and constraints protects data</li>
+        <li>How the browser reads and writes through the Data API with supabase-js</li>
+        <li>How Auth and Row Level Security keep each user's rows private</li>
+        <li>How Realtime pushes new rows to an open page</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout tip"><span class="label">Stuck?</span> The finished code is in <a href="https://github.com/PapinVlad/supabase-site/tree/main/tutorial/solution">tutorial/solution/</a> and on <a href="https://github.com/PapinVlad/supabase-site/tree/main/tutorial/solution">GitHub</a>. Each step ends with a check, and there is a <a href="#troubleshooting">troubleshooting table</a> at the end. Background for every step is in the <a href="guide.html">guide</a>.</div>
+</section>
+
+<!-- ============ STEP 1 ============ -->
+<section class="step" id="step-1" data-step="1">
+  <div class="step-head"><span class="step-num">1</span><h2>Create a Supabase project</h2><span class="pill">≈ 5 min</span></div>
+  <ol class="tasks">
+    <li>Open the <a href="https://supabase.com/dashboard">Supabase dashboard</a> and create a <span class="ui">New project</span>.</li>
+    <li>Give it a name such as <code>task-board-tutorial</code>, choose a region close to you (for example London or another region in Europe) and set a strong database password. You will not need the password in this tutorial, but store it in a password manager.</li>
+    <li>Wait until the project is ready; this usually takes a minute or two.</li>
+  </ol>
+  <div class="callout warn"><span class="label">Use a new project.</span> The SQL in step 2 creates tables. Run it in a fresh project made for this tutorial, not in a project you already use.</div>
+  <div class="callout check"><span class="label">Check.</span> The project dashboard opens and shows your project name at the top.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 1 works</label>
+</section>
+
+<!-- ============ STEP 2 ============ -->
+<section class="step" id="step-2" data-step="2">
+  <div class="step-head"><span class="step-num">2</span><h2>Create the tables and the access rules</h2><span class="pill">≈ 10 min</span></div>
+  <p>Open the <span class="ui">SQL Editor</span> in the left sidebar, start a new query, paste the whole script below and press <span class="ui">Run</span>. Then read the notes under it: they explain what each part does.</p>
+  <div class="code-title"><span>setup.sql</span><span>run once</span></div>
+<pre><code>-- Step 2 of the Group B Supabase tutorial. Run once in a NEW project (SQL Editor).
+-- Creates two tables, turns on Row Level Security and adds the access rules.
+begin;
+
+-- Shared reference data: every signed-in user can read the project names.
+create table public.demo_projects (
+  id   uuid primary key default gen_random_uuid(),
+  name text not null unique check (char_length(btrim(name)) between 1 and 80)
+);
+
+-- Each task belongs to one project and one user.
+create table public.demo_tasks (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.demo_projects(id),
+  owner_id   uuid not null references auth.users(id) on delete cascade,
+  title      text not null check (char_length(btrim(title)) between 1 and 120),
+  created_at timestamptz not null default now()
+);
+create index demo_tasks_owner_idx on public.demo_tasks(owner_id);
+create index demo_tasks_project_idx on public.demo_tasks(project_id);
+
+-- Row Level Security: nothing is reachable through the API until a policy allows it.
+alter table public.demo_projects enable row level security;
+alter table public.demo_tasks enable row level security;
+
+-- Grants: which operations each role may run at all. Signed-out users get nothing.
+revoke all on public.demo_projects, public.demo_tasks from public, anon, authenticated;
+grant usage on schema public to authenticated;
+grant select on public.demo_projects to authenticated;
+grant select, insert on public.demo_tasks to authenticated;
+
+-- Policies: which rows.
+create policy "Signed in users read demo projects"
+  on public.demo_projects for select to authenticated
+  using (true);
+
+create policy "Users read their own demo tasks"
+  on public.demo_tasks for select to authenticated
+  using ((select auth.uid()) = owner_id);
+
+create policy "Users insert their own demo tasks"
+  on public.demo_tasks for insert to authenticated
+  with check ((select auth.uid()) = owner_id);
+
+insert into public.demo_projects(name)
+  values ('Presentation research'), ('Tutorial preparation');
+
+commit;</code></pre>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Part</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><th>Two tables</th><td><code>demo_projects</code> holds shared project names. <code>demo_tasks</code> holds tasks; each one must point at a real project (<code>project_id</code>) and a real user in Supabase Auth (<code>owner_id</code> → <code>auth.users</code>).</td></tr>
+        <tr><th>Constraints</th><td><code>not null</code>, <code>unique</code> and <code>check</code> stop empty, duplicate or over-long values for every client, whatever the page does <a class="cite" href="references.html#r17">[17]</a>.</td></tr>
+        <tr><th>Enable RLS</th><td>With Row Level Security on, no rows are reachable through the API until a policy allows it <a class="cite" href="references.html#r4">[4]</a>.</td></tr>
+        <tr><th>Grants</th><td>Which operations a role may run. Signed-in users (<code>authenticated</code>) may read projects and read or insert tasks. Signed-out visitors (<code>anon</code>) get nothing. There is no update or delete grant.</td></tr>
+        <tr><th>Policies</th><td>Which rows. <code>using</code> filters what a user can read; <code>with check</code> tests each new row. Both compare <code>owner_id</code> with <code>auth.uid()</code>, the ID of the signed-in user <a class="cite" href="references.html#r18">[18]</a>.</td></tr>
+        <tr><th>Seed data</th><td>Two project names so the dropdown has something to show.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout check"><span class="label">Check.</span> The editor reports success. In the <span class="ui">Table Editor</span> you can see <code>demo_projects</code> with two rows and an empty <code>demo_tasks</code>.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 2 works</label>
+</section>
+
+<!-- ============ STEP 3 ============ -->
+<section class="step" id="step-3" data-step="3">
+  <div class="step-head"><span class="step-num">3</span><h2>Add two test users and close sign-ups</h2><span class="pill">≈ 5 min</span></div>
+  <ol class="tasks">
+    <li>Go to <span class="ui">Authentication → Users</span> and click <span class="ui">Add user</span> <a class="cite" href="references.html#r16">[16]</a>.</li>
+    <li>Choose the option that creates a user with an email and password (shown as <span class="ui">Create new user</span>), not an email invitation. Make sure the user is confirmed; tick <span class="ui">Auto Confirm User</span> if your dashboard shows it. By default, users with an unconfirmed email cannot sign in <a class="cite" href="references.html#r16">[16]</a>.</li>
+    <li>Create two users, for example <code>alice@example.com</code> and <code>bob@example.com</code>, each with its own password. These are test identities; do not reuse a real password.</li>
+    <li>In the Authentication settings for sign-in providers, turn off <span class="ui">Allow new users to sign up</span>. When it is off, only existing users can sign in <a class="cite" href="references.html#r15">[15]</a>.</li>
+  </ol>
+  <div class="callout tip"><span class="label">Why close sign-ups?</span> Your page will contain the project URL and publishable key. That is allowed, but with sign-ups open anyone could create an account in your project. With them closed, only your two test users can sign in.</div>
+  <div class="callout check"><span class="label">Check.</span> <span class="ui">Authentication → Users</span> lists both users. Each one has a user ID (a UUID); you will use these in step 7.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 3 works</label>
+</section>
+
+<!-- ============ STEP 4 ============ -->
+<section class="step" id="step-4" data-step="4">
+  <div class="step-head"><span class="step-num">4</span><h2>Set up the project files</h2><span class="pill">≈ 5 min</span></div>
+  <p>Make a new folder called <code>task-board</code> with three files. The page itself is given to you, so the rest of the tutorial can focus on the JavaScript.</p>
+  <details>
+    <summary><strong>index.html</strong>: copy the whole file</summary>
+    <div class="code-title" style="margin-top:12px"><span>index.html</span><span>HTML</span></div>
+<pre><code>&lt;!doctype html&gt;
+&lt;html lang="en-GB"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+  &lt;title&gt;Live task board · Supabase tutorial&lt;/title&gt;
+  &lt;style&gt;
+    [hidden] { display: none !important; }
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; background: #0f1714; color: #f2f5f3; }
+    section, form { display: grid; gap: 8px; margin-bottom: 24px; }
+    input, select, button { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid #2e3f38; background: #1a2420; color: inherit; }
+    button { cursor: pointer; background: #3ecf8e; color: #0f1714; font-weight: 700; border: 0; }
+    #status.error, #result.error { color: #ff8d80; }
+    #tasks li { margin-bottom: 6px; }
+    pre { background: #0b110f; padding: 12px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  &lt;/style&gt;
+  &lt;!-- Step 4: the Supabase client, your project settings, then your code --&gt;
+  &lt;script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"&gt;&lt;/script&gt;
+  &lt;script defer src="config.js"&gt;&lt;/script&gt;
+  &lt;script defer src="app.js"&gt;&lt;/script&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;Live task board&lt;/h1&gt;
+  &lt;p id="status" role="status"&gt;Loading…&lt;/p&gt;
+
+  &lt;!-- Step 5: sign in --&gt;
+  &lt;form id="loginForm"&gt;
+    &lt;label for="email"&gt;Email&lt;/label&gt;
+    &lt;input id="email" type="email" autocomplete="username" required&gt;
+    &lt;label for="password"&gt;Password&lt;/label&gt;
+    &lt;input id="password" type="password" autocomplete="current-password" required&gt;
+    &lt;button type="submit"&gt;Sign in&lt;/button&gt;
+  &lt;/form&gt;
+
+  &lt;div id="appSection" hidden&gt;
+    &lt;div class="row"&gt;
+      &lt;span id="who"&gt;&lt;/span&gt;
+      &lt;button id="signOut" type="button"&gt;Sign out&lt;/button&gt;
+    &lt;/div&gt;
+
+    &lt;!-- Step 6: add and list tasks --&gt;
+    &lt;form id="taskForm"&gt;
+      &lt;label for="project"&gt;Project&lt;/label&gt;
+      &lt;select id="project" required&gt;&lt;/select&gt;
+      &lt;label for="title"&gt;Task title&lt;/label&gt;
+      &lt;input id="title" maxlength="120" required&gt;
+      &lt;button type="submit"&gt;Save task&lt;/button&gt;
+    &lt;/form&gt;
+    &lt;div class="row"&gt;
+      &lt;strong&gt;&lt;span id="count"&gt;0&lt;/span&gt; tasks&lt;/strong&gt;
+      &lt;span&gt;Realtime: &lt;span id="live"&gt;Offline&lt;/span&gt; · events: &lt;span id="events"&gt;0&lt;/span&gt;&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;ul id="tasks"&gt;&lt;/ul&gt;
+    &lt;details&gt;&lt;summary&gt;Last query as JSON&lt;/summary&gt;&lt;pre id="json"&gt;[]&lt;/pre&gt;&lt;/details&gt;
+
+    &lt;!-- Step 7: test the access rules --&gt;
+    &lt;section&gt;
+      &lt;h2&gt;Rule checks&lt;/h2&gt;
+      &lt;button id="badProject" type="button"&gt;Insert with a project that does not exist&lt;/button&gt;
+      &lt;label for="otherTask"&gt;Another user's task ID&lt;/label&gt;
+      &lt;input id="otherTask" placeholder="paste a UUID"&gt;
+      &lt;button id="readOther" type="button"&gt;Try to read that task&lt;/button&gt;
+      &lt;label for="otherUser"&gt;Another user's ID&lt;/label&gt;
+      &lt;input id="otherUser" placeholder="paste a UUID"&gt;
+      &lt;button id="forgeOwner" type="button"&gt;Try to create a task for that user&lt;/button&gt;
+      &lt;pre id="result"&gt;No check has run yet.&lt;/pre&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+  </details>
+  <p style="margin-top:14px">Next, <code>config.js</code>. Open your project's <span class="ui">Connect</span> dialog (or <span class="ui">Settings → API Keys</span>) and copy the project URL and the <strong>publishable</strong> key <a class="cite" href="references.html#r2">[2]</a>:</p>
+  <div class="code-title"><span>config.js</span><span>your values</span></div>
+<pre><code>// Copy this file to config.js and paste your own values from the Supabase dashboard
+// (the Connect dialog, or Settings → API Keys).
+// Use the PUBLISHABLE key (sb_publishable_…). Never use a secret key in a web page.
+// config.js is listed in .gitignore, so it is not committed.
+window.APP_CONFIG = {
+  url: 'https://YOUR-PROJECT-REF.supabase.co',
+  key: 'sb_publishable_YOUR_KEY'
+};</code></pre>
+  <div class="callout danger"><span class="label">Never the secret key.</span> A key starting <code>sb_secret_</code> bypasses Row Level Security and must not be in any web page <a class="cite" href="references.html#r2">[2]</a>. If a guide tells you to copy a long key starting <code>eyJ</code>, it was written for the legacy keys. If you put this folder in a public Git repository, list <code>config.js</code> in <code>.gitignore</code>.</div>
+  <p>Finally, create an empty <code>app.js</code>. Then serve the folder from a terminal opened inside it:</p>
+<pre><code>python3 -m http.server 8000     # on Windows: py -m http.server 8000</code></pre>
+  <p>Open <a href="http://localhost:8000">http://localhost:8000</a>. Opening the file directly (<code>file://…</code>) is less reliable; use the local server or Live Server.</p>
+  <div class="callout check"><span class="label">Check.</span> The page shows "Live task board" and a sign-in form. The status line says "Loading…" because <code>app.js</code> is still empty.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 4 works</label>
+</section>
+
+<!-- ============ STEP 5 ============ -->
+<section class="step" id="step-5" data-step="5">
+  <div class="step-head"><span class="step-num">5</span><h2>Connect and sign in</h2><span class="pill">≈ 8 min</span></div>
+  <p>Paste this into <code>app.js</code>. It creates the client, signs users in and out, and reacts to the session. The four empty functions at the end are placeholders; later steps replace them.</p>
+  <div class="code-title"><span>app.js · part 1</span><span>JavaScript</span></div>
+<pre><code>'use strict';
+// ---------- Step 5: connect to your project ----------
+const { url, key } = window.APP_CONFIG;
+if (key.startsWith('sb_secret_')) throw new Error('Never put a secret key in a web page.');
+// Named db, not supabase: the script tag already defines a global called supabase.
+const db = window.supabase.createClient(url, key);
+
+const $ = id =&gt; document.getElementById(id);
+let user = null;      // the signed-in user, or null
+let channel = null;   // the Realtime channel (step 8)
+
+function show(message, isError = false) {
+  $('status').textContent = message;
+  $('status').className = isError ? 'error' : '';
+}
+function explain(error) {
+  return [error.code, error.message, error.details, error.hint].filter(Boolean).join(' · ');
+}
+
+// ---------- Step 5: sign in and out ----------
+$('loginForm').addEventListener('submit', async event =&gt; {
+  event.preventDefault();
+  const { error } = await db.auth.signInWithPassword({
+    email: $('email').value.trim(),
+    password: $('password').value
+  });
+  $('password').value = '';
+  if (error) show(explain(error), true);
+});
+
+$('signOut').addEventListener('click', () =&gt; db.auth.signOut());
+
+// Runs on page load, after sign-in, after sign-out and when the token is refreshed.
+// Keep this callback short and synchronous; do the real work just after it.
+db.auth.onAuthStateChange((_event, session) =&gt; {
+  setTimeout(() =&gt; setUser(session?.user ?? null), 0);
+});
+
+async function setUser(next) {
+  if (next?.id === user?.id) return;   // same user (e.g. token refresh): nothing to redraw
+  user = next;
+  $('loginForm').hidden = Boolean(user);
+  $('appSection').hidden = !user;
+  if (!user) {
+    stopLive();
+    $('tasks').replaceChildren();
+    show('Signed out.');
+    return;
+  }
+  $('who').textContent = `${user.email} · ID ${user.id}`;
+  show('Signed in.');
+  await loadProjects();
+  await loadTasks();
+  startLive();
+}
+
+// &lt;placeholders&gt; Empty for now: steps 6 and 8 replace them with real code.
+async function loadProjects() {}
+async function loadTasks() {}
+function startLive() {}
+function stopLive() {}
+// &lt;/placeholders&gt;
+
+show('Ready. Sign in with one of your test users.');</code></pre>
+  <ul>
+    <li><code>createClient(url, key)</code> makes one client for Auth, the Data API and Realtime <a class="cite" href="references.html#r14">[14]</a>. The CDN script in <code>index.html</code> provides it as the global <code>supabase</code>, which is why our client is called <code>db</code>.</li>
+    <li><code>signInWithPassword</code> sends the email and password to Supabase Auth, which returns a session with a JWT <a class="cite" href="references.html#r3">[3]</a>. supabase-js keeps the session in the browser and attaches the token to every later request.</li>
+    <li><code>onAuthStateChange</code> fires when the page loads (so a refresh keeps you signed in), after sign-in and sign-out, and when the token is refreshed. We only redraw when the user actually changes.</li>
+  </ul>
+  <div class="callout check"><span class="label">Check.</span> Reload the page and sign in as Alice. The form disappears and you see her email and user ID. Sign out, and the form comes back. A wrong password shows an error in red.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 5 works</label>
+</section>
+
+<!-- ============ STEP 6 ============ -->
+<section class="step" id="step-6" data-step="6">
+  <div class="step-head"><span class="step-num">6</span><h2>Add and list tasks</h2><span class="pill">≈ 10 min</span></div>
+  <p>Delete the placeholder lines for <code>loadProjects</code> and <code>loadTasks</code>, then add this code at the end of <code>app.js</code>.</p>
+  <div class="code-title"><span>app.js · part 2</span><span>JavaScript</span></div>
+<pre><code>// ---------- Step 6: read the shared projects ----------
+async function loadProjects() {
+  const { data, error } = await db.from('demo_projects').select('id, name').order('name');
+  if (error) return show(explain(error), true);
+  $('project').replaceChildren(...data.map(p =&gt; new Option(p.name, p.id)));
+}
+
+// ---------- Step 6: add a task ----------
+$('taskForm').addEventListener('submit', async event =&gt; {
+  event.preventDefault();
+  const { error } = await db.from('demo_tasks').insert({
+    project_id: $('project').value,
+    owner_id: user.id,
+    title: $('title').value.trim()
+  });
+  if (error) return show(explain(error), true);
+  $('title').value = '';
+  show('Task saved.');
+  await loadTasks();
+});
+
+// ---------- Step 6: list tasks with their project name ----------
+async function loadTasks() {
+  // No owner filter: Row Level Security decides which rows come back.
+  const { data, error } = await db.from('demo_tasks')
+    .select('id, title, created_at, demo_projects(name)')
+    .order('created_at', { ascending: false });
+  if (error) return show(explain(error), true);
+  $('tasks').replaceChildren(...data.map(task =&gt; {
+    const li = document.createElement('li');
+    li.textContent = `${task.title} (${task.demo_projects?.name ?? 'no project'}) · ${task.id}`;
+    return li;
+  }));
+  $('count').textContent = data.length;
+  $('json').textContent = JSON.stringify(data, null, 2);
+}</code></pre>
+  <ul>
+    <li><code>db.from('demo_tasks').insert({…})</code> becomes an HTTP request to the Data API, which PostgREST turns into SQL <a class="cite" href="references.html#r5">[5]</a>. We send our own user ID as <code>owner_id</code>, and the database checks that it really is ours.</li>
+    <li><code>demo_projects(name)</code> inside <code>select</code> embeds the related project in the same response. The API finds the relationship from the foreign key <a class="cite" href="references.html#r6">[6]</a>.</li>
+    <li>There is no "only my tasks" filter in the query. Row Level Security adds that rule inside the database.</li>
+  </ul>
+  <div class="callout check"><span class="label">Check.</span> As Alice, choose a project, add a task called "Investigate foreign keys" and save. It appears in the list with its project name, and the JSON panel shows the nested <code>demo_projects</code> object. Add one more task; you will need a task ID in step 7.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 6 works</label>
+</section>
+
+<!-- ============ STEP 7 ============ -->
+<section class="step" id="step-7" data-step="7">
+  <div class="step-head"><span class="step-num">7</span><h2>Prove that the rules work</h2><span class="pill">≈ 8 min</span></div>
+  <p>Add this code at the end of <code>app.js</code>. Each button sends a request that the database should refuse or filter.</p>
+  <div class="code-title"><span>app.js · part 3</span><span>JavaScript</span></div>
+<pre><code>// ---------- Step 7: check the rules on purpose ----------
+function result(text, isError = false) {
+  $('result').textContent = text;
+  $('result').className = isError ? 'error' : '';
+}
+
+$('badProject').addEventListener('click', async () =&gt; {
+  const { error } = await db.from('demo_tasks').insert({
+    project_id: '00000000-0000-0000-0000-000000000000',
+    owner_id: user.id,
+    title: 'Bad project test'
+  });
+  result(error ? `Rejected as expected (want 23503):\n${explain(error)}` : 'Unexpected: the row was saved.', !error);
+});
+
+$('readOther').addEventListener('click', async () =&gt; {
+  const { data, error } = await db.from('demo_tasks')
+    .select('id, title')
+    .eq('id', $('otherTask').value.trim());
+  if (error) return result(explain(error), true);
+  result(`Rows returned: ${data.length}\n${JSON.stringify(data, null, 2)}`);
+});
+
+$('forgeOwner').addEventListener('click', async () =&gt; {
+  const { error } = await db.from('demo_tasks').insert({
+    project_id: $('project').value,
+    owner_id: $('otherUser').value.trim(),
+    title: 'Forged owner test'
+  });
+  result(error ? `Rejected as expected (want 42501):\n${explain(error)}` : 'Unexpected: the row was saved.', !error);
+});</code></pre>
+  <p>Now test with two users. A private window keeps its own session, so it can be signed in as a different user.</p>
+  <ol class="tasks">
+    <li>In your normal window, signed in as <strong>Alice</strong>, copy one of her task IDs and her user ID (shown at the top).</li>
+    <li>Click <span class="ui">Insert with a project that does not exist</span>. Expect <code>23503</code>: a foreign key violation. This is a data-integrity rule and fails for every user.</li>
+    <li>Open a <strong>private window</strong> on <code>http://localhost:8000</code> and sign in as <strong>Bob</strong>. His list is empty.</li>
+    <li>Paste Alice's task ID into <span class="ui">Another user's task ID</span> and click <span class="ui">Try to read that task</span>. Expect <code>Rows returned: 0</code>: the <code>using</code> policy silently filtered the row out.</li>
+    <li>Paste Alice's user ID into <span class="ui">Another user's ID</span> and click <span class="ui">Try to create a task for that user</span>. Expect <code>42501</code>, "new row violates row-level security policy": the <code>with check</code> policy rejected it.</li>
+  </ol>
+  <div class="callout warn"><span class="label">Read the result carefully.</span> An empty result only proves something if the task really exists and Alice can see it. A mistyped ID also returns <code>[]</code>.</div>
+  <div class="callout check"><span class="label">Check.</span> You saw <code>23503</code>, <code>Rows returned: 0</code> and <code>42501</code>, and Alice's list still shows only her own tasks.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 7 works</label>
+</section>
+
+<!-- ============ STEP 8 ============ -->
+<section class="step" id="step-8" data-step="8">
+  <div class="step-head"><span class="step-num">8</span><h2>Go live with Realtime</h2><span class="pill">≈ 8 min</span></div>
+  <p>First let Realtime see the table. Run this in the <span class="ui">SQL Editor</span> <a class="cite" href="references.html#r8">[8]</a>:</p>
+  <div class="code-title"><span>realtime.sql</span><span>run once</span></div>
+<pre><code>-- Step 8 of the Group B Supabase tutorial: let Realtime see new rows in demo_tasks.
+alter publication supabase_realtime add table public.demo_tasks;
+
+-- Check: this should return one row.
+select pubname, schemaname, tablename
+from pg_publication_tables
+where pubname = 'supabase_realtime' and tablename = 'demo_tasks';</code></pre>
+  <p>Then delete the placeholder lines for <code>startLive</code> and <code>stopLive</code> and add this at the end of <code>app.js</code>:</p>
+  <div class="code-title"><span>app.js · part 4</span><span>JavaScript</span></div>
+<pre><code>// ---------- Step 8: live updates with Realtime ----------
+function startLive() {
+  stopLive();
+  channel = db.channel('tasks-live')
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'demo_tasks' },
+      () =&gt; {
+        $('events').textContent = Number($('events').textContent) + 1;
+        loadTasks();                     // fresh read, filtered by RLS again
+      })
+    .subscribe(state =&gt; {
+      $('live').textContent = state === 'SUBSCRIBED' ? '● Live' : state;
+    });
+}
+
+function stopLive() {
+  if (channel) db.removeChannel(channel);
+  channel = null;
+  $('live').textContent = 'Offline';
+}</code></pre>
+  <ul>
+    <li>The channel keeps one WebSocket open and asks for <code>INSERT</code> events on <code>demo_tasks</code>.</li>
+    <li>Realtime checks each event against the RLS policies before delivering it, so a user only receives events for rows they may read <a class="cite" href="references.html#r9">[9]</a>.</li>
+    <li>The callback does not use the event's data. It runs a fresh <code>loadTasks()</code>, which goes through RLS again and also brings the project name.</li>
+  </ul>
+  <ol class="tasks">
+    <li>Reload, sign in as Alice and open a <strong>second normal window</strong> next to it (same browser, so also Alice). Both should say <code>● Live</code>.</li>
+    <li>Add a task in the left window. Without a refresh, it appears in the right window and the events counter goes up.</li>
+    <li>Keep Bob's private window open too: his list and counter do not change.</li>
+  </ol>
+  <div class="callout check"><span class="label">Check.</span> The second Alice window updates by itself, and Bob receives nothing. Your own window's counter also goes up, because you are allowed to see your own new row.</div>
+  <label class="done-toggle"><input type="checkbox"> Step 8 works</label>
+</section>
+
+<!-- ============ STEP 9 ============ -->
+<section class="step" id="step-9" data-step="9">
+  <div class="step-head"><span class="step-num">9</span><h2>Wrap up and go further</h2><span class="pill">≈ 3 min</span></div>
+  <p>You have built a small but complete app: PostgreSQL holds related data with constraints, the browser uses the Data API without a server of your own, Auth identifies each user, Row Level Security keeps their rows private, and Realtime pushes new rows to open pages.</p>
+  <h3>Challenges</h3>
+  <ol class="tasks">
+    <li><strong>Delete your own tasks.</strong> Grant <code>delete</code> to <code>authenticated</code>, add a policy <code>for delete to authenticated using ((select auth.uid()) = owner_id)</code>, and add a button that calls <code>db.from('demo_tasks').delete().eq('id', id)</code>. Then try deleting one of Alice's tasks as Bob.</li>
+    <li><strong>Listen to every change.</strong> Change <code>event: 'INSERT'</code> to <code>event: '*'</code>. Note that Supabase does not apply RLS to DELETE events <a class="cite" href="references.html#r8">[8]</a>; our fresh SELECT still only shows permitted rows.</li>
+    <li><strong>Filter by project.</strong> Add a dropdown and <code>.eq('project_id', …)</code> to <code>loadTasks</code>.</li>
+  </ol>
+  <h3>Tidy up</h3>
+  <ul>
+    <li>Free projects pause after a week without activity; you can restore them from the dashboard <a class="cite" href="references.html#r13">[13]</a>.</li>
+    <li>Delete the project when you no longer need it, or keep it as a sandbox.</li>
+  </ul>
+  <label class="done-toggle"><input type="checkbox"> Step 9 done</label>
+</section>
+
+<section class="block" id="troubleshooting">
+  <h2>Troubleshooting</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>What you see</th><th>Likely cause and fix</th></tr></thead>
+      <tbody>
+        <tr><th>Status stays at "Loading…"</th><td>Open the browser console (<kbd>F12</kbd>). Usually <code>app.js</code> is empty or has a typo.</td></tr>
+        <tr><th>"Cannot destructure property 'url' of 'window.APP_CONFIG'"</th><td><code>config.js</code> is missing, misnamed or not in the same folder as <code>index.html</code>.</td></tr>
+        <tr><th>"Cannot read properties of undefined (reading 'createClient')"</th><td>The supabase-js script did not load. Check your internet connection and the <code>&lt;script&gt;</code> tag in <code>index.html</code>.</td></tr>
+        <tr><th>"Identifier 'supabase' has already been declared"</th><td>You named your client <code>supabase</code>. Call it <code>db</code>; the CDN script already uses that global name.</td></tr>
+        <tr><th>"Invalid login credentials"</th><td>Wrong email or password, or the user does not exist in this project.</td></tr>
+        <tr><th>"Email not confirmed"</th><td>Create the user again with the confirmed option (step 3), or confirm it in <span class="ui">Authentication → Users</span>.</td></tr>
+        <tr><th>"Could not find the table … in the schema cache"</th><td><code>setup.sql</code> did not run, ran in a different project, or the table name is misspelt.</td></tr>
+        <tr><th><code>42501</code> "permission denied for table …" when listing</th><td>A grant is missing: run the whole <code>setup.sql</code> in a new project rather than parts of it.</td></tr>
+        <tr><th><code>22P02</code> "invalid input syntax for type uuid"</th><td>In step 7 you pasted an email or name instead of a UUID.</td></tr>
+        <tr><th>Bob can read Alice's task</th><td>Both windows are signed in as the same user. Use a private window for Bob, and check the email shown at the top.</td></tr>
+        <tr><th>Live status shows <code>CHANNEL_ERROR</code> or <code>TIMED_OUT</code>, or nothing arrives</th><td>Run <code>realtime.sql</code> and check that its query returns one row, then reload both windows.</td></tr>
+        <tr><th>The project is paused</th><td>Free projects pause after a week without activity. Restore it from the dashboard and wait for it to start.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="block" id="credits">
+  <h2>Credits</h2>
+  <p>The code in steps 5 to 8 adapts patterns from the Supabase JavaScript reference and guides: <code>createClient</code> <a class="cite" href="references.html#r14">[14]</a>, password sign-in <a class="cite" href="references.html#r3">[3]</a>, embedded selects <a class="cite" href="references.html#r6">[6]</a> and <code>postgres_changes</code> subscriptions <a class="cite" href="references.html#r8">[8]</a>. The policy pattern with <code>(select auth.uid())</code> follows the Supabase RLS guide <a class="cite" href="references.html#r4">[4]</a>.</p>
+  <p>Our own work: the two-table schema and its constraints, the grants and policies, the three rule checks in step 7, the page and its error handling, and the fresh-read approach to Realtime events. The same design runs in the <a href="https://github.com/PapinVlad/supabase-site/tree/main/app">example app</a> from our presentation.</p>
+</section>
+</main>
+<footer class="site-footer">
+  <div class="inner">
+    <span>COMP10020 Internet Technologies · University of the West of Scotland · Coursework 1 · Group B</span>
+    <span><a href="https://github.com/PapinVlad/supabase-site">Repository on GitHub</a> · <a href="references.html">References</a></span>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

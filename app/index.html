@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en-GB">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Supabase Live Lab</title>
+    <style>
+        body {
+            font: 17px/1.5 system-ui, sans-serif;
+            background: #f3f6f8;
+            color: #17232b;
+            margin: 0
+        }
+
+        main {
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 24px
+        }
+
+        section {
+            background: white;
+            border: 1px solid #ccd6dc;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0
+        }
+
+        h1 {
+            line-height: 1.15
+        }
+
+        h2 {
+            font-size: 22px
+        }
+
+        label {
+            display: block;
+            margin: 14px 0 5px
+        }
+
+        input,
+        select,
+        button {
+            font: inherit;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #87979f;
+            box-sizing: border-box
+        }
+
+        input,
+        select {
+            width: 100%
+        }
+
+        button {
+            background: #165b49;
+            color: white;
+            cursor: pointer;
+            margin: 12px 8px 0 0
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: wait
+        }
+
+        li {
+            margin: 14px 0
+        }
+
+        small {
+            display: block;
+            color: #4a5962;
+            overflow-wrap: anywhere
+        }
+
+        pre {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            background: #edf1f3;
+            padding: 16px
+        }
+
+        #status {
+            padding: 12px;
+            border-left: 4px solid #165b49;
+            white-space: pre-wrap
+        }
+
+        #status.error {
+            border-color: #b13030;
+            color: #8a1818
+        }
+
+        [hidden] {
+            display: none !important
+        }
+
+        .note {
+            color: #4a5962
+        }
+
+        body {
+            background: #101817;
+            color: #e6eee9
+        }
+
+        main {
+            max-width: 1120px
+        }
+
+        section {
+            background: #182421;
+            border-color: #34453e
+        }
+
+        h1 {
+            font-size: 46px;
+            letter-spacing: -1.5px;
+            margin-bottom: 12px
+        }
+
+        .note,
+        small {
+            color: #a9bbb1
+        }
+
+        input,
+        select {
+            background: #101a16;
+            color: #eef6f0;
+            border-color: #597365
+        }
+
+        button {
+            background: #a4f7bd;
+            color: #112c1d;
+            font-weight: 600
+        }
+
+        pre {
+            background: #0e1713;
+            color: #c2dacd
+        }
+
+        #status {
+            background: #1b3228;
+            border-color: #86efa6
+        }
+
+        #status.error {
+            color: #ffbcb4;
+            border-color: #ff8d80
+        }
+
+        .topline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .badge {
+            border: 1px solid #64766c;
+            border-radius: 99px;
+            padding: 7px 13px;
+            font-size: 14px
+        }
+
+        .badge[data-state="live"] {
+            color: #9af9ba;
+            border-color: #5cba7a
+        }
+
+        .badge[data-state="error"] {
+            color: #ffbcb4
+        }
+
+        .metrics {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin: 16px 0;
+            color: #a9bbb1
+        }
+
+        .metrics strong {
+            color: #fff;
+            font-size: 24px
+        }
+
+        #tasks {
+            padding: 0;
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px
+        }
+
+        #tasks li {
+            margin: 0;
+            padding: 20px;
+            background: #22362c;
+            border: 1px solid #415c4b;
+            border-radius: 12px;
+            overflow-wrap: anywhere
+        }
+
+        #tasks li strong {
+            font-size: 20px
+        }
+
+        #tasks small {
+            margin-top: 10px
+        }
+
+        .project-label {
+            display: block;
+            color: #b8f8cd;
+            font-size: 13px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px
+        }
+
+        .fresh {
+            animation: arrive 3s ease-out
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px
+        }
+
+        .split section {
+            margin: 0
+        }
+
+        #eventLog {
+            max-height: 180px;
+            overflow: auto;
+            font-size: 14px
+        }
+
+        @keyframes arrive {
+            0% {
+                background: #416a3b;
+                box-shadow: 0 0 0 3px #b9fd97;
+                transform: translateY(-5px)
+            }
+
+            100% {
+                background: #22362c;
+                box-shadow: 0 0 0 0 transparent;
+                transform: none
+            }
+        }
+
+        @media(max-width:650px) {
+            main {
+                margin: 10px auto;
+                padding: 16px
+            }
+
+            h1 {
+                font-size: 34px
+            }
+
+            .split {
+                grid-template-columns: 1fr
+            }
+        }
+
+        @media(prefers-reduced-motion:reduce) {
+            .fresh {
+                animation: none;
+                border: 3px solid #b9fd97
+            }
+        }
+    </style>
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+    <script defer src="config.js"></script>
+    <script defer src="app.js"></script>
+</head>
+
+<body>
+    <main>
+        <p class="note">COMP10020 · Group B example app</p>
+        <div class="topline">
+            <h1>Supabase Live Lab</h1><span id="liveBadge" class="badge">Signed out</span>
+        </div>
+        <p>Create here. Watch it arrive in another window. Explore the database, API and access rules behind the result.
+        </p>
+        <p id="status" role="status" aria-live="polite">Loading…</p>
+        <section id="loginSection">
+            <h2>1. Sign in</h2>
+            <p>Create the test users in your Supabase dashboard first.</p>
+            <form id="loginForm"><label for="email">Email</label><input id="email" type="email" autocomplete="username"
+                    required>
+                <label for="password">Password</label><input id="password" type="password"
+                    autocomplete="current-password" required>
+                <button type="submit">Sign in</button>
+            </form>
+        </section>
+        <section id="accountSection" hidden>
+            <h2>Current identity</h2>
+            <p id="identity"></p><button id="signOut">Sign out</button>
+        </section>
+        <section id="taskSection" hidden>
+            <h2>2. Add a task</h2>
+            <p>Projects are shared reference data. Tasks belong to the signed-in user.</p>
+            <form id="taskForm"><label for="project">Project</label><select id="project" required></select>
+                <label for="title">Task title</label><input id="title" maxlength="120" required
+                    placeholder="For example, investigate foreign keys">
+                <button type="submit">Save task</button>
+            </form>
+            <h2>3. Your live task board</h2>
+            <div class="metrics"><span><strong id="taskCount">0</strong> visible tasks</span><span><strong
+                        id="eventCount">0</strong> live events this session</span></div>
+            <p class="note">Keep a second window signed in as the same user. No refresh is needed when a new task
+                arrives.</p><button id="refresh">Refresh tasks</button>
+            <ul id="tasks"></ul>
+            <details>
+                <summary>Last query result as JSON</summary>
+                <pre id="json">[]</pre>
+            </details>
+        </section>
+        <section id="liveSection" hidden>
+            <h2>Realtime activity</h2>
+            <p class="note">A database event triggers a fresh authorised query. The animation is local styling; event
+                delivery is Supabase Realtime.</p><button id="reconnect">Reconnect live feed</button>
+            <pre id="eventLog" aria-live="polite">Waiting for a connection.</pre>
+        </section>
+        <section id="testSection" hidden>
+            <h2>4. Check the database rules</h2>
+            <p>These checks deliberately send requests that should be rejected or filtered. Read the guide before
+                running them.</p>
+            <button id="foreignKeyTest">Test invalid project reference</button>
+            <label for="otherTask">Task ID belonging to the other test user</label><input id="otherTask"
+                placeholder="Paste the other user's task UUID">
+            <button id="readOther">Try reading that task</button>
+            <label for="otherOwner">Other test user's ID</label><input id="otherOwner"
+                placeholder="Paste the other user's UUID">
+            <button id="writeOther">Try creating a task for that user</button>
+            <pre id="testResult">No check has run yet.</pre>
+        </section>
+    </main>
+</body>
+
+</html>

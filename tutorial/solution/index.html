@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live task board · Supabase tutorial</title>
+  <style>
+    [hidden] { display: none !important; }
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; background: #0f1714; color: #f2f5f3; }
+    section, form { display: grid; gap: 8px; margin-bottom: 24px; }
+    input, select, button { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid #2e3f38; background: #1a2420; color: inherit; }
+    button { cursor: pointer; background: #3ecf8e; color: #0f1714; font-weight: 700; border: 0; }
+    #status.error, #result.error { color: #ff8d80; }
+    #tasks li { margin-bottom: 6px; }
+    pre { background: #0b110f; padding: 12px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  </style>
+  <!-- Step 4: the Supabase client, your project settings, then your code -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+  <script defer src="config.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <h1>Live task board</h1>
+  <p id="status" role="status">Loading…</p>
+
+  <!-- Step 5: sign in -->
+  <form id="loginForm">
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+  </form>
+
+  <div id="appSection" hidden>
+    <div class="row">
+      <span id="who"></span>
+      <button id="signOut" type="button">Sign out</button>
+    </div>
+
+    <!-- Step 6: add and list tasks -->
+    <form id="taskForm">
+      <label for="project">Project</label>
+      <select id="project" required></select>
+      <label for="title">Task title</label>
+      <input id="title" maxlength="120" required>
+      <button type="submit">Save task</button>
+    </form>
+    <div class="row">
+      <strong><span id="count">0</span> tasks</strong>
+      <span>Realtime: <span id="live">Offline</span> · events: <span id="events">0</span></span>
+    </div>
+    <ul id="tasks"></ul>
+    <details><summary>Last query as JSON</summary><pre id="json">[]</pre></details>
+
+    <!-- Step 7: test the access rules -->
+    <section>
+      <h2>Rule checks</h2>
+      <button id="badProject" type="button">Insert with a project that does not exist</button>
+      <label for="otherTask">Another user's task ID</label>
+      <input id="otherTask" placeholder="paste a UUID">
+      <button id="readOther" type="button">Try to read that task</button>
+      <label for="otherUser">Another user's ID</label>
+      <input id="otherUser" placeholder="paste a UUID">
+      <button id="forgeOwner" type="button">Try to create a task for that user</button>
+      <pre id="result">No check has run yet.</pre>
+    </section>
+  </div>
+</body>
+</html>

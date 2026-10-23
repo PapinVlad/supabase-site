@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cheat sheet · Supabase · Group B</title>
+<meta name="description" content="One page of Supabase SQL, supabase-js calls, key types, error codes and dashboard locations.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230F1714'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%233ECF8E'/%3E%3C/svg%3E">
+
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="index.html"><span class="dot" aria-hidden="true"></span>Supabase · Group B</a>
+    <nav class="site-nav" aria-label="Main">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="guide.html">Guide</a></li>
+        <li><a href="tutorial.html">Tutorial</a></li>
+        <li><a href="cheatsheet.html" aria-current="page">Cheat sheet</a></li>
+        <li><a href="slides.html">Slides</a></li>
+        <li><a href="references.html">References</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<main id="content">
+<section class="hero" style="padding-bottom:12px">
+  <p class="eyebrow">Cheat sheet</p>
+  <h1>Supabase on one page</h1>
+  <p class="lead">The commands, settings and error codes from our guide and tutorial. Print it with <kbd>Ctrl</kbd> + <kbd>P</kbd>; the page switches to a light two-column layout.</p>
+</section>
+
+<div class="sheet">
+  <div class="card">
+    <h3>Keys</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Key</th><th>Role</th><th>Use in</th></tr></thead>
+      <tbody>
+        <tr><td><code>sb_publishable_…</code></td><td>anon / authenticated, RLS applies</td><td>Browser, mobile, source code</td></tr>
+        <tr><td><code>sb_secret_…</code></td><td>service_role, bypasses RLS</td><td>Servers only</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">Find them in the <span class="ui">Connect</span> dialog or <span class="ui">Settings → API Keys</span>. Legacy <code>anon</code> / <code>service_role</code> keys are being deprecated by the end of 2026 <a class="cite" href="references.html#r2">[2]</a>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Client from a CDN</h3>
+<pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"&gt;&lt;/script&gt;
+&lt;script&gt;
+  const db = window.supabase.createClient(URL, PUBLISHABLE_KEY);
+&lt;/script&gt;</code></pre>
+    <p class="small muted">Pin an exact version. Do not call the client <code>supabase</code>: that name is the global from the script.</p>
+  </div>
+
+  <div class="card">
+    <h3>Auth</h3>
+<pre><code>await db.auth.signInWithPassword({ email, password });
+await db.auth.signOut();
+const { data: { session } } = await db.auth.getSession();
+db.auth.onAuthStateChange((event, session) =&gt; { /* keep it synchronous */ });</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>Read and write</h3>
+<pre><code>// read, with a related table embedded through its foreign key
+await db.from('demo_tasks')
+  .select('id, title, demo_projects(name)')
+  .order('created_at', { ascending: false });
+
+await db.from('demo_tasks').select('*').eq('id', taskId);
+await db.from('demo_tasks').insert({ project_id, owner_id, title });
+await db.from('demo_tasks').delete().eq('id', taskId);   // needs a grant + policy</code></pre>
+    <p class="small muted">Every call returns <code>{ data, error }</code>; check <code>error.code</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Realtime</h3>
+<pre><code>alter publication supabase_realtime add table public.demo_tasks;</code></pre>
+<pre><code>const channel = db.channel('tasks-live')
+  .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'demo_tasks' },
+      payload =&gt; refresh())
+  .subscribe(state =&gt; console.log(state));   // 'SUBSCRIBED'
+db.removeChannel(channel);</code></pre>
+    <p class="small muted"><code>event</code>: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> or <code>*</code>. DELETE events are not filtered by RLS <a class="cite" href="references.html#r8">[8]</a>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Tables and keys</h3>
+<pre><code>create table public.demo_tasks (
+  id         uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.demo_projects(id),
+  owner_id   uuid not null references auth.users(id) on delete cascade,
+  title      text not null check (char_length(btrim(title)) between 1 and 120),
+  created_at timestamptz not null default now()
+);</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>Grants: which operations</h3>
+<pre><code>revoke all on public.demo_tasks from public, anon, authenticated;
+grant select, insert on public.demo_tasks to authenticated;</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>RLS policies: which rows</h3>
+<pre><code>alter table public.demo_tasks enable row level security;
+
+create policy "read own" on public.demo_tasks
+  for select to authenticated
+  using ((select auth.uid()) = owner_id);
+
+create policy "insert own" on public.demo_tasks
+  for insert to authenticated
+  with check ((select auth.uid()) = owner_id);
+
+create policy "delete own" on public.demo_tasks
+  for delete to authenticated
+  using ((select auth.uid()) = owner_id);</code></pre>
+    <p class="small muted"><code>using</code> filters rows silently; a failed <code>with check</code> raises <code>42501</code>. Wrap <code>auth.uid()</code> in <code>select</code> for speed <a class="cite" href="references.html#r4">[4]</a>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Error codes</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Code</th><th>Meaning</th><th>Typical cause</th></tr></thead>
+      <tbody>
+        <tr><td><code>23502</code></td><td>not null violation</td><td>A required column is missing</td></tr>
+        <tr><td><code>23503</code></td><td>foreign key violation</td><td>The referenced row does not exist</td></tr>
+        <tr><td><code>23505</code></td><td>unique violation</td><td>Duplicate value in a unique column</td></tr>
+        <tr><td><code>23514</code></td><td>check violation</td><td>Value fails a <code>check</code> rule</td></tr>
+        <tr><td><code>42501</code></td><td>insufficient privilege</td><td>No grant, or RLS <code>with check</code> failed</td></tr>
+        <tr><td><code>22P02</code></td><td>invalid text representation</td><td>Text where a UUID was expected</td></tr>
+        <tr><td><code>[]</code></td><td>no rows, no error</td><td>RLS <code>using</code> filtered them, or none match</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">PostgreSQL SQLSTATE codes <a class="cite" href="references.html#r19">[19]</a>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Where things are in the dashboard</h3>
+    <div class="table-wrap"><table>
+      <tbody>
+        <tr><th>Run SQL</th><td><span class="ui">SQL Editor</span></td></tr>
+        <tr><th>See data</th><td><span class="ui">Table Editor</span></td></tr>
+        <tr><th>URL and keys</th><td><span class="ui">Connect</span> or <span class="ui">Settings → API Keys</span></td></tr>
+        <tr><th>Users</th><td><span class="ui">Authentication → Users → Add user</span></td></tr>
+        <tr><th>Close sign-ups</th><td>Auth provider settings: <span class="ui">Allow new users to sign up</span></td></tr>
+        <tr><th>Realtime tables</th><td><span class="ui">Database → Publications</span> or the SQL above</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h3>Plans and limits</h3>
+    <ul class="small">
+      <li><strong>Free, $0:</strong> 500 MB database, 50,000 monthly active users, 5 GB egress; pauses after a week idle.</li>
+      <li><strong>Pro, from $25 a month:</strong> plus usage; daily backups.</li>
+      <li>Export any time: <code>supabase db dump</code> or <code>pg_dump</code>.</li>
+    </ul>
+    <p class="small muted">Checked 10 October 2026 <a class="cite" href="references.html#r13">[13]</a> <a class="cite" href="references.html#r12">[12]</a>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Safety checklist</h3>
+    <ul class="small">
+      <li>RLS enabled on every table the API can reach</li>
+      <li>A policy for each operation you grant</li>
+      <li>Only the publishable key in the browser</li>
+      <li><code>config.js</code> with real values not committed</li>
+      <li>Sign-ups closed for test projects</li>
+      <li>Test with a second user in a private window</li>
+    </ul>
+  </div>
+</div>
+</main>
+<footer class="site-footer">
+  <div class="inner">
+    <span>COMP10020 Internet Technologies · University of the West of Scotland · Coursework 1 · Group B</span>
+    <span><a href="https://github.com/PapinVlad/supabase-site">Repository on GitHub</a> · <a href="references.html">References</a></span>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>
